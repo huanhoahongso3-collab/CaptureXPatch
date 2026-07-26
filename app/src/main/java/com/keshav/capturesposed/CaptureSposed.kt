@@ -1,14 +1,10 @@
 package com.keshav.capturesposed
 
-import android.os.Build
-import com.keshav.capturesposed.hookers.ScreenRecordingCallbackControllerHooker
-import com.keshav.capturesposed.hookers.SystemUIHooker
-import com.keshav.capturesposed.hookers.WindowManagerServiceHooker
+import com.keshav.capturesposed.hookers.ScreenCaptureDetectionHooker
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam
-import io.github.libxposed.api.XposedModuleInterface.SystemServerLoadedParam
 
 private lateinit var module: CaptureSposed
 
@@ -17,34 +13,18 @@ class CaptureSposed(base: XposedInterface, param: ModuleLoadedParam) : XposedMod
         module = this
     }
 
-    override fun onSystemServerLoaded(param: SystemServerLoadedParam) {
-        super.onSystemServerLoaded(param)
-
-        try {
-            WindowManagerServiceHooker.hook(param, module)
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM)
-                ScreenRecordingCallbackControllerHooker.hook(param, module)
-        } catch (e: Exception) {
-            log("[CaptureSposed] ERROR: $e")
-        }
-    }
-
+    /*
+        Hooks run entirely client-side inside each scoped app's own process, so this module works
+        whether it is loaded system-wide via LSPosed (with root) or embedded into a single target
+        app via LSPatch (no root, no system_server access).
+     */
     override fun onPackageLoaded(param: PackageLoadedParam) {
         super.onPackageLoaded(param)
 
-        when (param.packageName) {
-            "com.android.systemui" -> {
-                val prefs = getRemotePreferences(BuildConfig.APPLICATION_ID)
-                if (!prefs.getBoolean("tileRevealDone", false)) {
-                    try {
-                        module.log("[CaptureSposed] Hooking System UI to add and reveal quick settings tile.")
-                        SystemUIHooker.hook(param, module)
-                    } catch (e: Exception) {
-                        log("[CaptureSposed] ERROR: $e")
-                    }
-                }
-            }
+        try {
+            ScreenCaptureDetectionHooker.hook(param, module)
+        } catch (e: Exception) {
+            log("[CaptureSposed] ERROR: $e")
         }
     }
 }

@@ -77,7 +77,5 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.libxposed.service)
     debugImplementation(libs.compose.tooling)
-    implementation(libs.libxposed.service)
-    implementation(libs.libsu.core)
     compileOnly(libs.libxposed.api)
 }

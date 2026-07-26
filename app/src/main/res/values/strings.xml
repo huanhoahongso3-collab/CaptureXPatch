@@ -1,15 +1,9 @@
 <resources>
     <string name="xposed_name">CaptureSposed</string>
     <string name="xposed_description">Block Android\'s Screenshot and Screen Recording Detection APIs</string>
-    <string name="screenshot_tile_label">Block Screenshot Detection</string>
-    <string name="screen_record_tile_label">Block Recording Detection</string>
-    <string name="no_root_access">CaptureSposed requires root access to function. Please grant it using your root manager. After granting root access, you may need to force stop CaptureSposed.</string>
-    <string name="module_disabled">CaptureSposed module is not enabled. Please enable it in the LSPosed Manager, reboot your device, and try again.</string>
+    <string name="module_disabled">CaptureSposed module is not enabled for this app. Add it to the app\'s scope in the LSPosed Manager (or apply it with LSPatch), reboot/restart the app, and try again.</string>
     <string name="status_title">Status</string>
-    <string name="screenshot_status_blocked">Screenshot detection is blocked</string>
-    <string name="screenshot_status_allowed">Screenshot detection is allowed</string>
-    <string name="screen_record_status_blocked">Recording detection is blocked</string>
-    <string name="screen_record_status_allowed">Recording detection is allowed</string>
+    <string name="detection_blocked">Screenshot and recording detection are blocked for this app.</string>
     <string name="card_title_testing">Testing</string>
     <string name="status">Status</string>
     <string name="error">Error</string>
