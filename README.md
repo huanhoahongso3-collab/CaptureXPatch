@@ -26,11 +26,16 @@ Hooks run entirely client-side inside each scoped app's own process, so the modu
 
 ## Building
 
-This project uses Gradle with a Kotlin DSL and depends on the [`libxposed/api`](https://github.com/libxposed/api) and [`libxposed/service`](https://github.com/libxposed/service) git submodules.
+This project uses Gradle with a Kotlin DSL and depends on the [`libxposed/api`](https://github.com/libxposed/api) and [`libxposed/service`](https://github.com/libxposed/service) git submodules. Those submodules are separate Gradle projects (requiring JDK 21) whose artifacts must be published to your local Maven repository before the app can resolve them.
 
 ```sh
 git clone --recurse-submodules <this-repo-url>
 cd CaptureSposed
+
+# Publish the libxposed submodule artifacts to ~/.m2
+(cd libxposed/api && ./gradlew publishToMavenLocal)
+(cd libxposed/service && ./gradlew publishToMavenLocal)
+
 ./gradlew assembleDebug
 ```
 
