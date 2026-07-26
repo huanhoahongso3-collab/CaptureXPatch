@@ -1,7 +1,7 @@
 <resources>
-    <string name="xposed_name">CaptureSposed</string>
+    <string name="xposed_name">CaptureXPatch</string>
     <string name="xposed_description">Block Android\'s Screenshot and Screen Recording Detection APIs</string>
-    <string name="module_disabled">CaptureSposed module is not enabled for this app. Add it to the app\'s scope in the LSPosed Manager (or apply it with LSPatch), reboot/restart the app, and try again.</string>
+    <string name="module_disabled">CaptureXPatch module is not enabled for this app. Add it to the app\'s scope in the LSPosed Manager (or apply it with LSPatch), reboot/restart the app, and try again.</string>
     <string name="status_title">Status</string>
     <string name="detection_blocked">Screenshot and recording detection are blocked for this app.</string>
     <string name="card_title_testing">Testing</string>

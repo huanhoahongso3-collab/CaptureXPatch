@@ -37,7 +37,7 @@ object ScreenCaptureDetectionHooker {
                 OnScreenCapturedHooker::class.java
             )
         } catch (e: Throwable) {
-            module.log("[CaptureSposed] Could not hook screenshot detection callback: $e")
+            module.log("[CaptureXPatch] Could not hook screenshot detection callback: $e")
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
@@ -58,7 +58,7 @@ object ScreenCaptureDetectionHooker {
                     NotifyCallbacksHooker::class.java
                 )
             } catch (e: Throwable) {
-                module.log("[CaptureSposed] Could not hook screen recording detection callback: $e")
+                module.log("[CaptureXPatch] Could not hook screen recording detection callback: $e")
             }
         }
     }
@@ -70,7 +70,7 @@ object ScreenCaptureDetectionHooker {
             @JvmStatic
             @BeforeInvocation
             fun beforeInvocation(callback: BeforeHookCallback) {
-                module?.log("[CaptureSposed] Blocked screenshot detection.")
+                module?.log("[CaptureXPatch] Blocked screenshot detection.")
                 callback.returnAndSkip(null)
             }
         }
@@ -83,7 +83,7 @@ object ScreenCaptureDetectionHooker {
             @JvmStatic
             @AfterInvocation
             fun afterInvocation(callback: AfterHookCallback) {
-                module?.log("[CaptureSposed] Blocked initial screen recording detection state.")
+                module?.log("[CaptureXPatch] Blocked initial screen recording detection state.")
                 callback.result = SCREEN_RECORDING_STATE_NOT_VISIBLE
             }
         }
@@ -96,7 +96,7 @@ object ScreenCaptureDetectionHooker {
             @JvmStatic
             @BeforeInvocation
             fun beforeInvocation(callback: BeforeHookCallback) {
-                module?.log("[CaptureSposed] Blocked screen recording detection state change.")
+                module?.log("[CaptureXPatch] Blocked screen recording detection state change.")
                 callback.args[0] = SCREEN_RECORDING_STATE_NOT_VISIBLE
             }
         }

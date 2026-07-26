@@ -24,7 +24,7 @@ class CaptureSposed(base: XposedInterface, param: ModuleLoadedParam) : XposedMod
         try {
             ScreenCaptureDetectionHooker.hook(param, module)
         } catch (e: Exception) {
-            log("[CaptureSposed] ERROR: $e")
+            log("[CaptureXPatch] ERROR: $e")
         }
     }
 }
