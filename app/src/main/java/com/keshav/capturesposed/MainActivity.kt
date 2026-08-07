@@ -1,12 +1,17 @@
 package com.keshav.capturesposed
 
+import android.Manifest
 import android.app.Activity.ScreenCaptureCallback
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.WindowManager.SCREEN_RECORDING_STATE_VISIBLE
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeTopAppBar
@@ -57,6 +63,39 @@ class MainActivity : ComponentActivity() {
 
     private var screenshotCounter = mutableIntStateOf(0)
     private var screenRecordingActive = mutableStateOf("")
+    private var detectionTestResult = mutableStateOf<String?>(null)
+
+    // Mirrors how a real detector app finds screenshots: query the most recently added images
+    // and look for one whose path/name mentions "screenshot". If the hooks in
+    // ScreenCaptureDetectionHooker are active in this process, that row is filtered out before
+    // it ever reaches this code, so the query returns nothing even right after a screenshot.
+    private fun mediaStoreShowsRecentScreenshot(): Boolean {
+        val projection = arrayOf(
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.DISPLAY_NAME,
+            MediaStore.Images.Media.DATA
+        )
+        contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            projection,
+            null,
+            null,
+            "${MediaStore.Images.Media.DATE_ADDED} DESC LIMIT 10"
+        )?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME)
+            val dataIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
+            while (cursor.moveToNext()) {
+                val name = if (nameIndex >= 0) cursor.getString(nameIndex) else null
+                val path = if (dataIndex >= 0) cursor.getString(dataIndex) else null
+                if (name?.contains("screenshot", ignoreCase = true) == true ||
+                    path?.contains("screenshot", ignoreCase = true) == true
+                ) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -155,6 +194,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 MainCard()
                 TestCard()
+                DetectionTestCard()
             }
         }
     }
@@ -222,6 +262,76 @@ class MainActivity : ComponentActivity() {
                         fontSize = 20.sp,
                         textAlign = TextAlign.Start,
                         modifier = Modifier.padding(10.dp),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+
+    @Composable
+    fun DetectionTestCard() {
+        val context = LocalContext.current
+        val readImagesPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+
+        val permissionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            if (granted) {
+                detectionTestResult.value = if (mediaStoreShowsRecentScreenshot()) {
+                    "Screenshot found — MediaStore is NOT filtered. Make sure the module is patched into this app and Xposed/LSPatch is active."
+                } else {
+                    "No screenshot found in the last 10 images — screenshot detection is blocked."
+                }
+            } else {
+                detectionTestResult.value = "Storage permission is required to run this test."
+            }
+        }
+
+        OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(painterResource(R.drawable.test_tube_24), getString(R.string.card_title_testing))
+                    Text("Screenshot Detection Test", fontSize = 24.sp)
+                }
+                Text(
+                    text = "1. Take a screenshot now (e.g. power + volume down).\n" +
+                        "2. Come back and tap the button below.\n" +
+                        "This repeats the same MediaStore query a real detector app would use.",
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier.padding(top = 10.dp, bottom = 10.dp),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Button(onClick = {
+                    val granted = ContextCompat.checkSelfPermission(
+                        context, readImagesPermission
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (granted) {
+                        detectionTestResult.value = if (mediaStoreShowsRecentScreenshot()) {
+                            "Screenshot found — MediaStore is NOT filtered. Make sure the module is patched into this app and Xposed/LSPatch is active."
+                        } else {
+                            "No screenshot found in the last 10 images — screenshot detection is blocked."
+                        }
+                    } else {
+                        permissionLauncher.launch(readImagesPermission)
+                    }
+                }) {
+                    Text("Check for Screenshot Detection")
+                }
+                detectionTestResult.value?.let { result ->
+                    Text(
+                        text = result,
+                        fontSize = 16.sp,
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.padding(top = 10.dp),
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }

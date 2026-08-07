@@ -2,6 +2,7 @@ package com.keshav.capturesposed.hookers
 
 import android.annotation.SuppressLint
 import android.database.Cursor
+import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -26,6 +27,10 @@ import java.util.function.Consumer
  */
 object ScreenCaptureDetectionHooker {
     private var module: XposedModule? = null
+
+    // Set while we issue our own verification query (e.g. from isScreenshotUri) so our own
+    // ContentResolver.query hooks don't recursively filter/consume that internal lookup.
+    private val inInternalQuery = ThreadLocal.withInitial { false }
 
     @SuppressLint("PrivateApi", "BlockedPrivateApi")
     fun hook(param: PackageLoadedParam, module: XposedModule) {
@@ -199,6 +204,67 @@ object ScreenCaptureDetectionHooker {
             module.log("[CaptureXPatch] Could not hook FileObserver.startWatching: $e")
         }
 
+        // Second line of defense: apps that watch a broad parent directory (Pictures/DCIM)
+        // instead of a literal ".../Screenshots" path filter individual events in onEvent().
+        try {
+            val fileObserverClass = classLoader.loadClass("android.os.FileObserver")
+            module.hook(
+                fileObserverClass.getDeclaredMethod(
+                    "onEvent", Int::class.javaPrimitiveType, String::class.java
+                ),
+                OnEventHooker::class.java
+            )
+        } catch (e: Throwable) {
+            module.log("[CaptureXPatch] Could not hook FileObserver.onEvent: $e")
+        }
+
+        // ContentObserver.dispatchChange runs inside the target app process (delivered over
+        // Binder from MediaProvider), so it's hookable even under LSPatch's single-process scope.
+        try {
+            val contentObserverClass = classLoader.loadClass("android.database.ContentObserver")
+
+            try {
+                module.hook(
+                    contentObserverClass.getDeclaredMethod(
+                        "dispatchChange", Boolean::class.javaPrimitiveType, Uri::class.java
+                    ),
+                    DispatchChangeUriHooker::class.java
+                )
+            } catch (e: Throwable) {
+                module.log("[CaptureXPatch] Could not hook ContentObserver.dispatchChange(Uri): $e")
+            }
+
+            try {
+                module.hook(
+                    contentObserverClass.getDeclaredMethod(
+                        "dispatchChange",
+                        Boolean::class.javaPrimitiveType,
+                        Uri::class.java,
+                        Int::class.javaPrimitiveType
+                    ),
+                    DispatchChangeUriFlagsHooker::class.java
+                )
+            } catch (e: Throwable) {
+                module.log("[CaptureXPatch] Could not hook ContentObserver.dispatchChange(Uri,flags): $e")
+            }
+
+            try {
+                module.hook(
+                    contentObserverClass.getDeclaredMethod(
+                        "dispatchChange",
+                        Boolean::class.javaPrimitiveType,
+                        Collection::class.java,
+                        Int::class.javaPrimitiveType
+                    ),
+                    DispatchChangeCollectionHooker::class.java
+                )
+            } catch (e: Throwable) {
+                module.log("[CaptureXPatch] Could not hook ContentObserver.dispatchChange(Collection,flags): $e")
+            }
+        } catch (e: Throwable) {
+            module.log("[CaptureXPatch] Could not hook ContentObserver: $e")
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             try {
                 val screenRecordingCallbacksClass = classLoader.loadClass(
@@ -222,39 +288,85 @@ object ScreenCaptureDetectionHooker {
         }
     }
 
+    private fun rowIsScreenshot(cursor: Cursor): Boolean {
+        for (colName in cursor.columnNames) {
+            val index = cursor.getColumnIndex(colName)
+            if (index >= 0) {
+                try {
+                    val value = cursor.getString(index)
+                    if (value != null && value.contains("screenshot", ignoreCase = true)) {
+                        module?.log("[CaptureXPatch] Found screenshot keyword in column $colName: $value")
+                        return true
+                    }
+                } catch (e: Throwable) {
+                    // Not a string column, ignore
+                }
+            }
+        }
+        return false
+    }
+
+    // Filters both single-row cursors (query by item id) and multi-row cursors (apps that scan
+    // the N most recent images looking for a screenshot among them). Screenshot rows are
+    // stripped out instead of nulling the whole cursor, so callers that don't null-check don't
+    // crash or fall back to another detection path.
     private fun filterCursor(result: Any?, uri: Uri?): Any? {
+        if (inInternalQuery.get()) return result
         val cursor = result as? Cursor ?: return result
         try {
-            var isScreenshot = false
-            val count = cursor.count
-            val isSingleItem = uri != null && uri.lastPathSegment?.toLongOrNull() != null
-            if ((count == 1 || isSingleItem) && count > 0 && cursor.moveToFirst()) {
-                val columnNames = cursor.columnNames
-                for (colName in columnNames) {
-                    val index = cursor.getColumnIndex(colName)
-                    if (index >= 0) {
-                        try {
-                            val value = cursor.getString(index)
-                            if (value != null && value.contains("screenshot", ignoreCase = true)) {
-                                isScreenshot = true
-                                module?.log("[CaptureXPatch] Found screenshot keyword in column $colName: $value")
-                                break
-                            }
-                        } catch (e: Throwable) {
-                            // Not a string column, ignore
+            val columnNames = cursor.columnNames
+            val matrix = MatrixCursor(columnNames)
+            var removedAny = false
+            if (cursor.moveToFirst()) {
+                do {
+                    if (rowIsScreenshot(cursor)) {
+                        removedAny = true
+                        continue
+                    }
+                    val row = arrayOfNulls<Any>(columnNames.size)
+                    for (i in columnNames.indices) {
+                        row[i] = when (cursor.getType(i)) {
+                            Cursor.FIELD_TYPE_INTEGER -> cursor.getLong(i)
+                            Cursor.FIELD_TYPE_FLOAT -> cursor.getDouble(i)
+                            Cursor.FIELD_TYPE_BLOB -> cursor.getBlob(i)
+                            Cursor.FIELD_TYPE_NULL -> null
+                            else -> cursor.getString(i)
                         }
                     }
-                }
-                cursor.moveToFirst() // Reset cursor position for the app
+                    matrix.addRow(row)
+                } while (cursor.moveToNext())
             }
-            if (isScreenshot) {
-                module?.log("[CaptureXPatch] Blocked screenshot query result for URI: $uri")
-                return null
+            if (!removedAny) {
+                cursor.moveToFirst()
+                return cursor
             }
+            module?.log("[CaptureXPatch] Filtered screenshot row(s) from query result for URI: $uri")
+            return matrix
         } catch (e: Throwable) {
             module?.log("[CaptureXPatch] Error filtering cursor: $e")
         }
         return cursor
+    }
+
+    private fun isScreenshotUri(uri: Uri?): Boolean {
+        if (uri == null) return false
+        try {
+            val app = android.app.ActivityThread.currentApplication() ?: return false
+            val resolver = app.contentResolver
+            inInternalQuery.set(true)
+            try {
+                resolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        return rowIsScreenshot(cursor)
+                    }
+                }
+            } finally {
+                inInternalQuery.set(false)
+            }
+        } catch (e: Throwable) {
+            module?.log("[CaptureXPatch] Error checking dispatchChange URI: $e")
+        }
+        return false
     }
 
     @XposedHooker
@@ -306,6 +418,87 @@ object ScreenCaptureDetectionHooker {
                     }
                 } catch (e: Throwable) {
                     module?.log("[CaptureXPatch] Error in StartWatchingHooker beforeInvocation: $e")
+                }
+            }
+        }
+    }
+
+    @XposedHooker
+    private class OnEventHooker : Hooker {
+        companion object {
+            @Suppress("unused")
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback) {
+                try {
+                    val path = callback.args.getOrNull(1) as? String
+                    if (path != null && path.contains("screenshot", ignoreCase = true)) {
+                        module?.log("[CaptureXPatch] Blocked FileObserver.onEvent for: $path")
+                        callback.returnAndSkip(null)
+                    }
+                } catch (e: Throwable) {
+                    module?.log("[CaptureXPatch] Error in OnEventHooker beforeInvocation: $e")
+                }
+            }
+        }
+    }
+
+    @XposedHooker
+    private class DispatchChangeUriHooker : Hooker {
+        companion object {
+            @Suppress("unused")
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback) {
+                try {
+                    val uri = callback.args.getOrNull(1) as? Uri
+                    if (isScreenshotUri(uri)) {
+                        module?.log("[CaptureXPatch] Blocked ContentObserver.dispatchChange for: $uri")
+                        callback.returnAndSkip(null)
+                    }
+                } catch (e: Throwable) {
+                    module?.log("[CaptureXPatch] Error in DispatchChangeUriHooker beforeInvocation: $e")
+                }
+            }
+        }
+    }
+
+    @XposedHooker
+    private class DispatchChangeUriFlagsHooker : Hooker {
+        companion object {
+            @Suppress("unused")
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback) {
+                try {
+                    val uri = callback.args.getOrNull(1) as? Uri
+                    if (isScreenshotUri(uri)) {
+                        module?.log("[CaptureXPatch] Blocked ContentObserver.dispatchChange for: $uri")
+                        callback.returnAndSkip(null)
+                    }
+                } catch (e: Throwable) {
+                    module?.log("[CaptureXPatch] Error in DispatchChangeUriFlagsHooker beforeInvocation: $e")
+                }
+            }
+        }
+    }
+
+    @XposedHooker
+    private class DispatchChangeCollectionHooker : Hooker {
+        companion object {
+            @Suppress("unused")
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback) {
+                try {
+                    @Suppress("UNCHECKED_CAST")
+                    val uris = callback.args.getOrNull(1) as? Collection<Uri>
+                    if (uris != null && uris.isNotEmpty() && uris.all { isScreenshotUri(it) }) {
+                        module?.log("[CaptureXPatch] Blocked ContentObserver.dispatchChange for collection: $uris")
+                        callback.returnAndSkip(null)
+                    }
+                } catch (e: Throwable) {
+                    module?.log("[CaptureXPatch] Error in DispatchChangeCollectionHooker beforeInvocation: $e")
                 }
             }
         }
