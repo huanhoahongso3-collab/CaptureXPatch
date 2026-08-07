@@ -69,30 +69,38 @@ class MainActivity : ComponentActivity() {
     // and look for one whose path/name mentions "screenshot". If the hooks in
     // ScreenCaptureDetectionHooker are active in this process, that row is filtered out before
     // it ever reaches this code, so the query returns nothing even right after a screenshot.
-    private fun mediaStoreShowsRecentScreenshot(): Boolean {
+    // Returns null on failure (permission denied, provider error, etc.) instead of throwing,
+    // since a raw MediaStore query can fail for reasons outside our control (e.g. Android 14
+    // partial photo-access grants) and must never crash the host app.
+    private fun mediaStoreShowsRecentScreenshot(): Boolean? {
         val projection = arrayOf(
             MediaStore.Images.Media._ID,
             MediaStore.Images.Media.DISPLAY_NAME,
             MediaStore.Images.Media.DATA
         )
-        contentResolver.query(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            null,
-            null,
-            "${MediaStore.Images.Media.DATE_ADDED} DESC LIMIT 10"
-        )?.use { cursor ->
-            val nameIndex = cursor.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME)
-            val dataIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
-            while (cursor.moveToNext()) {
-                val name = if (nameIndex >= 0) cursor.getString(nameIndex) else null
-                val path = if (dataIndex >= 0) cursor.getString(dataIndex) else null
-                if (name?.contains("screenshot", ignoreCase = true) == true ||
-                    path?.contains("screenshot", ignoreCase = true) == true
-                ) {
-                    return true
+        try {
+            contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                null,
+                null,
+                "${MediaStore.Images.Media.DATE_ADDED} DESC LIMIT 10"
+            )?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME)
+                val dataIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
+                while (cursor.moveToNext()) {
+                    val name = if (nameIndex >= 0) cursor.getString(nameIndex) else null
+                    val path = if (dataIndex >= 0) cursor.getString(dataIndex) else null
+                    if (name?.contains("screenshot", ignoreCase = true) == true ||
+                        path?.contains("screenshot", ignoreCase = true) == true
+                    ) {
+                        return true
+                    }
                 }
-            }
+            } ?: return null
+        } catch (e: Throwable) {
+            android.util.Log.e("CaptureXPatch", "Screenshot detection test query failed", e)
+            return null
         }
         return false
     }
@@ -282,10 +290,10 @@ class MainActivity : ComponentActivity() {
             ActivityResultContracts.RequestPermission()
         ) { granted ->
             if (granted) {
-                detectionTestResult.value = if (mediaStoreShowsRecentScreenshot()) {
-                    "Screenshot found — MediaStore is NOT filtered. Make sure the module is patched into this app and Xposed/LSPatch is active."
-                } else {
-                    "No screenshot found in the last 10 images — screenshot detection is blocked."
+                detectionTestResult.value = when (mediaStoreShowsRecentScreenshot()) {
+                    true -> "Screenshot found — MediaStore is NOT filtered. Make sure the module is patched into this app and Xposed/LSPatch is active."
+                    false -> "No screenshot found in the last 10 images — screenshot detection is blocked."
+                    null -> "Could not run the test query (check permission or Logcat for 'CaptureXPatch')."
                 }
             } else {
                 detectionTestResult.value = "Storage permission is required to run this test."
