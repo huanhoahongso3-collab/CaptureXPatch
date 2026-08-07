@@ -348,16 +348,30 @@ object ScreenCaptureDetectionHooker {
         return cursor
     }
 
+    // android.app.ActivityThread is a hidden API: not present in the public SDK stubs used for
+    // compilation, so it must be reached via reflection rather than a direct class reference.
+    private fun currentApplicationContext(): android.content.Context? {
+        return try {
+            val activityThreadClass = Class.forName("android.app.ActivityThread")
+            val currentApplicationMethod = activityThreadClass.getMethod("currentApplication")
+            currentApplicationMethod.invoke(null) as? android.content.Context
+        } catch (e: Throwable) {
+            module?.log("[CaptureXPatch] Could not obtain application context: $e")
+            null
+        }
+    }
+
     private fun isScreenshotUri(uri: Uri?): Boolean {
         if (uri == null) return false
         try {
-            val app = android.app.ActivityThread.currentApplication() ?: return false
-            val resolver = app.contentResolver
+            val context = currentApplicationContext() ?: return false
+            val resolver = context.contentResolver
             inInternalQuery.set(true)
             try {
-                resolver.query(uri, null, null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        return rowIsScreenshot(cursor)
+                val cursor: Cursor? = resolver.query(uri, null, null, null, null)
+                cursor?.use {
+                    if (it.moveToFirst()) {
+                        return rowIsScreenshot(it)
                     }
                 }
             } finally {
