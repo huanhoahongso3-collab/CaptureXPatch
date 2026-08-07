@@ -78,4 +78,5 @@ dependencies {
     implementation(libs.libxposed.service)
     debugImplementation(libs.compose.tooling)
     compileOnly(libs.libxposed.api)
+    compileOnly(libs.xposed.legacy.api)
 }

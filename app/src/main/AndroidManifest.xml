@@ -12,6 +12,22 @@
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">
 
+        <!--
+            Legacy module discovery meta-data. This module's real hook logic runs through the
+            modern io.github.libxposed.api entry point (META-INF/xposed/java_init.list), but some
+            LSPatch/NPatch manager builds only offer dynamic/live scope toggling through the
+            legacy loading path, which requires this manifest meta-data to be found by the
+            manager's module scanner. CaptureSposedLegacy (assets/xposed_init) is a thin legacy
+            IXposedHookLoadPackage entry point that installs the same hooks via
+            LegacyScreenCaptureDetectionHooker for that path.
+        -->
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposedminversion"
+            android:value="93" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

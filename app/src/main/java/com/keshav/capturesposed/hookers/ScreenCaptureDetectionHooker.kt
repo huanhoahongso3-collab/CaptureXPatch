@@ -1,8 +1,6 @@
 package com.keshav.capturesposed.hookers
 
 import android.annotation.SuppressLint
-import android.database.Cursor
-import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -28,9 +26,9 @@ import java.util.function.Consumer
 object ScreenCaptureDetectionHooker {
     private var module: XposedModule? = null
 
-    // Set while we issue our own verification query (e.g. from isScreenshotUri) so our own
-    // ContentResolver.query hooks don't recursively filter/consume that internal lookup.
-    private val inInternalQuery = ThreadLocal.withInitial { false }
+    private fun log(message: String) {
+        module?.log("[CaptureXPatch] $message")
+    }
 
     @SuppressLint("PrivateApi", "BlockedPrivateApi")
     fun hook(param: PackageLoadedParam, module: XposedModule) {
@@ -288,100 +286,11 @@ object ScreenCaptureDetectionHooker {
         }
     }
 
-    private fun rowIsScreenshot(cursor: Cursor): Boolean {
-        for (colName in cursor.columnNames) {
-            val index = cursor.getColumnIndex(colName)
-            if (index >= 0) {
-                try {
-                    val value = cursor.getString(index)
-                    if (value != null && value.contains("screenshot", ignoreCase = true)) {
-                        module?.log("[CaptureXPatch] Found screenshot keyword in column $colName: $value")
-                        return true
-                    }
-                } catch (e: Throwable) {
-                    // Not a string column, ignore
-                }
-            }
-        }
-        return false
-    }
+    private fun filterCursor(result: Any?, uri: Uri?): Any? =
+        ScreenCaptureFilterUtils.filterCursor(result, uri, ::log)
 
-    // Filters both single-row cursors (query by item id) and multi-row cursors (apps that scan
-    // the N most recent images looking for a screenshot among them). Screenshot rows are
-    // stripped out instead of nulling the whole cursor, so callers that don't null-check don't
-    // crash or fall back to another detection path.
-    private fun filterCursor(result: Any?, uri: Uri?): Any? {
-        if (inInternalQuery.get()) return result
-        val cursor = result as? Cursor ?: return result
-        try {
-            val columnNames = cursor.columnNames
-            val matrix = MatrixCursor(columnNames)
-            var removedAny = false
-            if (cursor.moveToFirst()) {
-                do {
-                    if (rowIsScreenshot(cursor)) {
-                        removedAny = true
-                        continue
-                    }
-                    val row = arrayOfNulls<Any>(columnNames.size)
-                    for (i in columnNames.indices) {
-                        row[i] = when (cursor.getType(i)) {
-                            Cursor.FIELD_TYPE_INTEGER -> cursor.getLong(i)
-                            Cursor.FIELD_TYPE_FLOAT -> cursor.getDouble(i)
-                            Cursor.FIELD_TYPE_BLOB -> cursor.getBlob(i)
-                            Cursor.FIELD_TYPE_NULL -> null
-                            else -> cursor.getString(i)
-                        }
-                    }
-                    matrix.addRow(row)
-                } while (cursor.moveToNext())
-            }
-            if (!removedAny) {
-                cursor.moveToFirst()
-                return cursor
-            }
-            module?.log("[CaptureXPatch] Filtered screenshot row(s) from query result for URI: $uri")
-            return matrix
-        } catch (e: Throwable) {
-            module?.log("[CaptureXPatch] Error filtering cursor: $e")
-        }
-        return cursor
-    }
-
-    // android.app.ActivityThread is a hidden API: not present in the public SDK stubs used for
-    // compilation, so it must be reached via reflection rather than a direct class reference.
-    private fun currentApplicationContext(): android.content.Context? {
-        return try {
-            val activityThreadClass = Class.forName("android.app.ActivityThread")
-            val currentApplicationMethod = activityThreadClass.getMethod("currentApplication")
-            currentApplicationMethod.invoke(null) as? android.content.Context
-        } catch (e: Throwable) {
-            module?.log("[CaptureXPatch] Could not obtain application context: $e")
-            null
-        }
-    }
-
-    private fun isScreenshotUri(uri: Uri?): Boolean {
-        if (uri == null) return false
-        try {
-            val context = currentApplicationContext() ?: return false
-            val resolver = context.contentResolver
-            inInternalQuery.set(true)
-            try {
-                val cursor: Cursor? = resolver.query(uri, null, null, null, null)
-                cursor?.use {
-                    if (it.moveToFirst()) {
-                        return rowIsScreenshot(it)
-                    }
-                }
-            } finally {
-                inInternalQuery.set(false)
-            }
-        } catch (e: Throwable) {
-            module?.log("[CaptureXPatch] Error checking dispatchChange URI: $e")
-        }
-        return false
-    }
+    private fun isScreenshotUri(uri: Uri?): Boolean =
+        ScreenCaptureFilterUtils.isScreenshotUri(uri, ::log)
 
     @XposedHooker
     private class StartWatchingHooker : Hooker {
