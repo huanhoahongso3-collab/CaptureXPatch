@@ -13,11 +13,20 @@ android {
         applicationId = "dhp.thl.tpl.capturexpatch"
         minSdk = 34
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.0.7"
+        versionCode = 2010
+        versionName = "2.1.0"
 
         vectorDrawables {
             useSupportLibrary = true
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("my-release-key.jks")
+            storePassword = System.getenv("PASSWORD")
+            keyAlias = System.getenv("ALIAS")
+            keyPassword = System.getenv("PASSWORD")
         }
     }
 
@@ -38,6 +47,7 @@ android {
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
