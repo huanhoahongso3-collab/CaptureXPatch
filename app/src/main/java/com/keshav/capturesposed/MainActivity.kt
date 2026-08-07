@@ -323,10 +323,10 @@ class MainActivity : ComponentActivity() {
                         context, readImagesPermission
                     ) == PackageManager.PERMISSION_GRANTED
                     if (granted) {
-                        detectionTestResult.value = if (mediaStoreShowsRecentScreenshot()) {
-                            "Screenshot found — MediaStore is NOT filtered. Make sure the module is patched into this app and Xposed/LSPatch is active."
-                        } else {
-                            "No screenshot found in the last 10 images — screenshot detection is blocked."
+                        detectionTestResult.value = when (mediaStoreShowsRecentScreenshot()) {
+                            true -> "Screenshot found — MediaStore is NOT filtered. Make sure the module is patched into this app and Xposed/LSPatch is active."
+                            false -> "No screenshot found in the last 10 images — screenshot detection is blocked."
+                            null -> "Could not run the test query (check permission or Logcat for 'CaptureXPatch')."
                         }
                     } else {
                         permissionLauncher.launch(readImagesPermission)
