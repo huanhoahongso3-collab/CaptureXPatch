@@ -1,5 +1,6 @@
 package dhp.thl.tpl.capturexpatch.hookers
 
+import android.annotation.SuppressLint
 import android.content.ContentResolver
 import android.content.ContentProviderClient
 import android.database.ContentObserver
@@ -126,6 +127,7 @@ object LegacyScreenCaptureDetectionHooker {
             XposedHelpers.findAndHookMethod(
                 FileObserver::class.java, "startWatching",
                 object : XC_MethodHook() {
+                    @SuppressLint("BlockedPrivateApi")
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         try {
                             var isScreenshotDir = false

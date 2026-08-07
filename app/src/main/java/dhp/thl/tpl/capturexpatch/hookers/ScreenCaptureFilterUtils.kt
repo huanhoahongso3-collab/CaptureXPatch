@@ -1,5 +1,6 @@
 package dhp.thl.tpl.capturexpatch.hookers
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.database.Cursor
 import android.database.MatrixCursor
@@ -80,6 +81,7 @@ object ScreenCaptureFilterUtils {
 
     // android.app.ActivityThread is a hidden API: not present in the public SDK stubs used for
     // compilation, so it must be reached via reflection rather than a direct class reference.
+    @SuppressLint("PrivateApi", "BlockedPrivateApi")
     fun currentApplicationContext(log: (String) -> Unit): Context? {
         return try {
             val activityThreadClass = Class.forName("android.app.ActivityThread")

@@ -298,6 +298,7 @@ object ScreenCaptureDetectionHooker {
             @Suppress("unused")
             @JvmStatic
             @BeforeInvocation
+            @SuppressLint("BlockedPrivateApi")
             fun beforeInvocation(callback: BeforeHookCallback) {
                 try {
                     val fileObserverClass = android.os.FileObserver::class.java
