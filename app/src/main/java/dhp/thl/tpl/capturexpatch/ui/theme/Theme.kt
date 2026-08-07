@@ -1,4 +1,4 @@
-package com.keshav.capturesposed.ui.theme
+package dhp.thl.tpl.capturexpatch.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme

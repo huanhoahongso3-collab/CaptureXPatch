@@ -1,4 +1,4 @@
-package com.keshav.capturesposed.hookers
+package dhp.thl.tpl.capturexpatch.hookers
 
 import android.content.ContentResolver
 import android.content.ContentProviderClient

@@ -5,12 +5,12 @@ plugins {
 }
 
 android {
-    namespace = "com.keshav.capturesposed"
+    namespace = "dhp.thl.tpl.capturexpatch"
     compileSdk = 35
     buildToolsVersion = "35.0.0"
 
     defaultConfig {
-        applicationId = "com.keshav.capturesposed"
+        applicationId = "dhp.thl.tpl.capturexpatch"
         minSdk = 34
         targetSdk = 35
         versionCode = 8

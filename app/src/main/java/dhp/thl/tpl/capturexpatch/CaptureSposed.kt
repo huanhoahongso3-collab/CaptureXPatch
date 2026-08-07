@@ -1,6 +1,6 @@
-package com.keshav.capturesposed
+package dhp.thl.tpl.capturexpatch
 
-import com.keshav.capturesposed.hookers.ScreenCaptureDetectionHooker
+import dhp.thl.tpl.capturexpatch.hookers.ScreenCaptureDetectionHooker
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam

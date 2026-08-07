@@ -1,4 +1,4 @@
-package com.keshav.capturesposed.utils
+package dhp.thl.tpl.capturexpatch.utils
 
 import io.github.libxposed.service.XposedService
 import io.github.libxposed.service.XposedServiceHelper

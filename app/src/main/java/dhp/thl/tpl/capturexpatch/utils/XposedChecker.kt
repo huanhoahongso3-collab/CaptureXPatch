@@ -1,4 +1,4 @@
-package com.keshav.capturesposed.utils
+package dhp.thl.tpl.capturexpatch.utils
 
 object XposedChecker {
     private var isEnabled = false

@@ -1,4 +1,4 @@
-package com.keshav.capturesposed
+package dhp.thl.tpl.capturexpatch
 
 import android.Manifest
 import android.app.Activity.ScreenCaptureCallback
@@ -54,9 +54,9 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getString
 import androidx.core.graphics.drawable.toBitmap
-import com.keshav.capturesposed.ui.theme.APPTheme
-import com.keshav.capturesposed.utils.PrefsUtils
-import com.keshav.capturesposed.utils.XposedChecker
+import dhp.thl.tpl.capturexpatch.ui.theme.APPTheme
+import dhp.thl.tpl.capturexpatch.utils.PrefsUtils
+import dhp.thl.tpl.capturexpatch.utils.XposedChecker
 import java.util.function.Consumer
 
 class MainActivity : ComponentActivity() {

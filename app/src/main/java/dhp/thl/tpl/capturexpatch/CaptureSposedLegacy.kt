@@ -1,6 +1,6 @@
-package com.keshav.capturesposed
+package dhp.thl.tpl.capturexpatch
 
-import com.keshav.capturesposed.hookers.LegacyScreenCaptureDetectionHooker
+import dhp.thl.tpl.capturexpatch.hookers.LegacyScreenCaptureDetectionHooker
 import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam
